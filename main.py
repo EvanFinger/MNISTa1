@@ -1,104 +1,66 @@
+import os
 import numpy as np
 from keras.datasets import mnist
-from matplotlib import pyplot
+import matplotlib.pyplot as plt
 
-# loading the dataset
-(train_X, train_y), (test_X, test_y) = mnist.load_data()
+# formatting data
+(images, labels), (test_images, test_labels) = mnist.load_data()
+images = images.reshape([60000, 784])
+temp = labels
+labels = np.zeros((60000, 10), dtype=int)
+for index in range(60000):
+    for index_1 in range(10):
+        if index_1 == temp[index]:
+            labels[index][index_1] = 1
+images = images / 252
 
-# printing the shapes of the vectors
-print('X_train: ' + str(train_X.shape))
-print('Y_train: ' + str(train_y.shape))
-print('X_test:  '  + str(test_X.shape))
-print('Y_test:  '  + str(test_y.shape))
+wt_in_hid = np.random.uniform(-0.5, 0.5, (20, 784))
+wt_hid_out = np.random.uniform(-0.5, 0.5, (10, 20))
+bias_in_hid = np.zeros((20, 1))
+bias_hid_out = np.zeros((10, 1))
 
+learn_rate = 0.001
+nr_correct = 0
+epochs = 1000
+for epoch in range(epochs):
+    for img, l in zip(images, labels):
+        img.shape += (1,)
+        l.shape += (1,)
+        # forward prop in->hid
+        z = bias_in_hid + wt_in_hid @ img  # un-activated hidden layer
+        a = 1 / (1 + np.exp(-z))  # activated hidden layer
+        # forward prop hid->out
+        o_pre = bias_hid_out + wt_hid_out @ a  # un-activated output layer
+        o = 1 / (1 + np.exp(-o_pre))  # activated output layer
+        # cost / error
+        e = 1 / len(o) * np.sum((o - l) ** 2, axis=0)
+        nr_correct += int(np.argmax(o) == np.argmax(l))
 
-pyplot.subplot(330 + 1 + 1)
-pyplot.imshow(train_X[1], cmap=pyplot.get_cmap('gray'))
-pyplot.show()
+        # back propagation out -> hid (cost funct deriv)
+        delta_o = o - l
+        wt_hid_out += -learn_rate * delta_o @ np.transpose(a)
+        bias_hid_out += -learn_rate * delta_o
+        # back propagation hid -> in (activation funct deriv)
+        delta_a = np.transpose(wt_hid_out) @ delta_o * (a * (1 - a))
+        wt_in_hid += -learn_rate * delta_a @ np.transpose(img)
+        bias_in_hid += -learn_rate * delta_a
 
+    print(f"Acc: {round((nr_correct / images.shape[0]) * 100, 2)}%")
+    nr_correct = 0
 
-def set_inout(x):
-    global i0
-    global trueout
-    i0 = np.array(train_X[x])  # 784 inputs
-    i0 = i0.flatten()
-    for e in range(784):
-        i0[e] = i0[e] / 252
-    trueout = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-    for element in range(10):
-        if element == train_y[x]:
-            trueout[train_y[x]] = 1
+# show results
+while True:
+    index = int(input("Enter a number (0 - 59999): "))
+    img = images[index]
+    plt.imshow(img.reshape(28,28), cmap="Greys")
 
+    img.shape += (1,)
+    # Forward propagation input -> hidden
+    z = bias_in_hid + wt_in_hid @ img.reshape(784, 1)
+    a = 1 / (1 + np.exp(-z))
+    # Forward propagation hidden -> output
+    o_pre = bias_hid_out + wt_hid_out @ a
+    o = 1 / (1 + np.exp(-o_pre))
 
-z0 = [0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]
-s0 = [0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]
-w0 = np.random.uniform(-1, 1, (10, 784))  # first weight layer
-w1 = np.random.uniform(-1, 1, (10, 10))  # second weight layer
-
-b0 = np.random.uniform(-1, 1, (1, 10))
-b1 = np.random.uniform(-1, 1, (1, 10))
-
-
-
-def sig(x):
-    return 1/(1 + np.exp(-x))
-
-
-def softmax(vec):
-    exponential = np.exp(vec)
-    probabilities = exponential / np.sum(exponential)
-    return probabilities
-
-
-def forward_propagation():
-    global s0
-    global i0
-    global s0_a
-    for index in range(10):
-        z0[index] = np.sum(np.multiply(i0, w0[index]), 0) + b0[0][index]
-        z0[index] = sig(z0[index])
-    for index in range(10):
-        s0[index] = np.sum(np.multiply(z0, w1[index]), 0) + b1[0][index]
-    s0_a = softmax(s0)
-
-
-def predict():
-    temp = 0
-    prediction = 0
-    for index in range(10):
-        if s0[index] > temp:
-            temp = s0[index]
-            prediction = index
-    return prediction
-
-
-def cost():
-    global trueout
-    return np.square(np.subtract(trueout, s0))
-
-
-def back_propagation():
-    for w1_r in range(10):
-        for w1_c in range(10):
-            w1[w1_r][w1_c] = w1[w1_r][w1_c] - (2 * (s0_a[w1_r] - trueout[w1_r]))*(s0[w1_r])*(z0[w1_c])
-
-
-    print(s0_a)
-    print(trueout)
-    print(cost())
-    print(cost().mean())
-
-
-
-
-# for image in train_X:
-for index in range(1):
-    set_inout(index)
-    forward_propagation()
-    back_propagation()
-    print(predict())
-
-
-
-
-
+    plt.title(o.argmax())
+    plt.show()
